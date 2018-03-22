@@ -18,37 +18,40 @@ logPath = "./tb_logs/"
 
 def generateData():
     #0,1, 50K samples, 50% chance each chosen
-    x = np.array(np.random.choice(2, total_series_length, p=[0.5, 0.5]))
-    #shift 3 steps to the left
-    y = np.roll(x, echo_step)
-    #padd beginning 3 values with 0
-    y[0:echo_step] = 0
-    #Gives a new shape to an array without changing its data.
-    #The reshaping takes the whole dataset and puts it into a matrix, 
-    #that later will be sliced up into these mini-batches.
-    x = x.reshape((batch_size, -1))  # The first index changing slowest, subseries as rows
-    y = y.reshape((batch_size, -1))
+    with tf.name_scope("Input"):
+        x = np.array(np.random.choice(2, total_series_length, p=[0.5, 0.5]))
+        #shift 3 steps to the left
+        y = np.roll(x, echo_step)
+        #padd beginning 3 values with 0
+        y[0:echo_step] = 0
+        #Gives a new shape to an array without changing its data.
+        #The reshaping takes the whole dataset and puts it into a matrix, 
+        #that later will be sliced up into these mini-batches.
+
+    with tf.name_scope("Input_Reshape"):
+        x = x.reshape((batch_size, -1))  # The first index changing slowest, subseries as rows
+        y = y.reshape((batch_size, -1))
 
     return (x, y)
 
-data = generateData()
-
-
-batchX_placeholder = tf.placeholder(tf.float32, [batch_size, truncated_backprop_length])
-batchY_placeholder = tf.placeholder(tf.int32, [batch_size, truncated_backprop_length])
-init_state = tf.placeholder(tf.float32, [batch_size, state_size])
+with tf.name_scope("FirstLayerPlaceHolders"):
+    batchX_placeholder = tf.placeholder(tf.float32, [batch_size, truncated_backprop_length], name="batchX_placeholder")
+    batchY_placeholder = tf.placeholder(tf.int32, [batch_size, truncated_backprop_length], name="batchY_placeholder")
+    init_state = tf.placeholder(tf.float32, [batch_size, state_size], name="init_state")
 
 #randomly initialize weights
-W = tf.Variable(np.random.rand(state_size+1, state_size), dtype=tf.float32)
-#anchor, improves convergance, matrix of 0s 
-b = tf.Variable(np.zeros((1,state_size)), dtype=tf.float32)
+with tf.name_scope("FirstLayerWeightsAndBias"):
+    W = tf.Variable(np.random.rand(state_size+1, state_size), dtype=tf.float32, name="W")
+    #anchor, improves convergance, matrix of 0s 
+    b = tf.Variable(np.zeros((1,state_size)), dtype=tf.float32, name="b")
 
-W2 = tf.Variable(np.random.rand(state_size, num_classes),dtype=tf.float32)
-b2 = tf.Variable(np.zeros((1,num_classes)), dtype=tf.float32)
+with tf.name_scope("SecondLayerWeightsAndBias"):
+    W2 = tf.Variable(np.random.rand(state_size, num_classes),dtype=tf.float32, name="W2")
+    b2 = tf.Variable(np.zeros((1,num_classes)), dtype=tf.float32,name="b2")
 
-
-inputs_series = tf.unstack(batchX_placeholder, axis=1)
-labels_series = tf.unstack(batchY_placeholder, axis=1)
+with tf.name_scope("inputSeries"):
+    inputs_series = tf.unstack(batchX_placeholder, axis=1, name="inputs_series")
+    labels_series = tf.unstack(batchY_placeholder, axis=1, name="labels_series")
 
 #Forward pass
 #state placeholder
@@ -135,6 +138,8 @@ with tf.Session() as sess:
     #we stupidly have to do this everytime, it should just know
     #that we initialized these vars. v2 guys, v2..
     sess.run(tf.global_variables_initializer())
+
+    tbWriter = tf.summary.FileWriter(logPath, sess.graph)
     #interactive mode
     plt.ion()
     #initialize the figure
